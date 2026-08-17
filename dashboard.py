@@ -102,16 +102,20 @@ PALETTE_COULEURS = {
 # ==========================================
 # 2. CHARGEMENT DES DONNÉES MONGODB SÉCURISÉ
 # ==========================================
-# Récupération de l'URI depuis secrets, variable d'environnement ou session
-if "mongo_uri" not in st.session_state:
-    st.session_state["mongo_uri"] = os.getenv("MONGO_URI", "")
+# Priorité : st.secrets (Streamlit Cloud) -> os.environ -> session_state
+def get_mongo_uri():
+    if "MONGO_URI" in st.secrets:
+        return st.secrets["MONGO_URI"]
+    elif "mongo_uri" in st.session_state and st.session_state["mongo_uri"]:
+        return st.session_state["mongo_uri"]
+    return os.getenv("MONGO_URI", "")
 
 @st.cache_data(ttl=15)
 def load_latest_traffic_data(uri):
     if not uri:
         return pd.DataFrame(), None
     try:
-        client = MongoClient(uri)
+        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
         db = client["lyon_traffic_db"]
         collection = db["congestions"]
         
@@ -127,6 +131,8 @@ def load_latest_traffic_data(uri):
     except Exception as e:
         return pd.DataFrame(), None
 
+active_uri = get_mongo_uri()
+
 # ==========================================
 # 3. BARRE LATÉRALE (NAVIGATION & FILTRES & CONNEXION)
 # ==========================================
@@ -135,15 +141,15 @@ with st.sidebar:
     st.caption("Pipeline : Kafka ➡️ PySpark ➡️ MongoDB")
     st.write("---")
     
-    # Configuration sécurisée de la connexion
+    # Configuration sécurisée de la connexion (Optionnelle si Secrets est configuré)
     st.markdown("#### 🔐 CONNEXION MONGODB")
     input_uri = st.text_input(
         "URI MongoDB Atlas :", 
-        value=st.session_state["mongo_uri"], 
+        value=active_uri, 
         type="password",
-        help="Collez votre URI de connexion MongoDB Atlas"
+        help="Automatiquement chargé depuis Secrets en ligne ou modifiable ici"
     )
-    if input_uri != st.session_state["mongo_uri"]:
+    if input_uri != active_uri:
         st.session_state["mongo_uri"] = input_uri
         st.rerun()
 
@@ -158,7 +164,7 @@ with st.sidebar:
     st.write("---")
     st.markdown("#### FILTRES")
 
-    df_raw, dernier_horodatage = load_latest_traffic_data(st.session_state["mongo_uri"])
+    df_raw, dernier_horodatage = load_latest_traffic_data(active_uri)
 
     axes_disponibles = ["Tous les axes"] + sorted(df_raw["nom_axe"].dropna().unique().tolist()) if not df_raw.empty else ["Tous les axes"]
     selected_axe = st.selectbox("Zone / Axe :", axes_disponibles)
@@ -172,8 +178,8 @@ with st.sidebar:
     st.markdown('<div class="sidebar-footer" style="position: fixed; bottom: 20px; color: #64748B; font-size: 0.8em;">© 2026 Smart Traffic System</div>', unsafe_allow_html=True)
 
 # Message explicatif si aucune URI n'est configurée
-if not st.session_state["mongo_uri"]:
-    st.warning("⚠️ Veuillez renseigner votre URI MongoDB Atlas dans le panneau latéral (Sidebar) pour charger les données du trafic.")
+if not active_uri:
+    st.warning("⚠️ Veuillez renseigner votre URI MongoDB Atlas dans les Secrets Streamlit ou le panneau latéral (Sidebar).")
     st.stop()
 
 # Filtrage local
