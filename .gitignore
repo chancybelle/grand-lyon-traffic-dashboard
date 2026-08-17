@@ -1,0 +1,14 @@
+# Environnement virtuel local (très lourd)
+venv_bigdata/
+
+# Dossiers de checkpoints PySpark
+checkpoint/
+chk_global/
+
+# Configurations locales
+.vscode/
+.streamlit/ secrets.toml
+
+# Cache Python
+__pycache__/
+*.pyc
