@@ -116,6 +116,7 @@ def get_mongo_uri():
     return os.getenv("MONGO_URI", "")
 
 @st.cache_data(ttl=15)
+@st.cache_data(ttl=15)
 def load_latest_traffic_data(uri):
     if not uri:
         return pd.DataFrame(), None
@@ -124,19 +125,27 @@ def load_latest_traffic_data(uri):
         db = client["lyon_traffic_db"]
         collection = db["congestions"]
         
-        latest_doc = collection.find_one(sort=[("horodatage_source", -1)])
-        if not latest_doc:
+        # Agrégation pour récupérer la dernière valeur par segment (id_segment)
+        pipeline = [
+            {"$sort": {"horodatage_source": -1}},
+            {"$group": {
+                "_id": "$id_segment",
+                "latest_doc": {"$first": "$$ROOT"}
+            }},
+            {"$replaceRoot": {"newRoot": "$latest_doc"}}
+        ]
+        
+        cursor = collection.aggregate(pipeline)
+        df = pd.DataFrame(list(cursor))
+        
+        if df.empty:
             return pd.DataFrame(), None
             
-        latest_timestamp = latest_doc.get("horodatage_source")
-        cursor = collection.find({"horodatage_source": latest_timestamp}, {"_id": 0})
-        df = pd.DataFrame(list(cursor))
+        latest_timestamp = df["horodatage_source"].max() if "horodatage_source" in df.columns else None
         
         return df, latest_timestamp
     except Exception as e:
         return pd.DataFrame(), None
-
-active_uri = get_mongo_uri()
 
 # ==========================================
 # 3. BARRE LATÉRALE (NAVIGATION & FILTRES & CONNEXION)
