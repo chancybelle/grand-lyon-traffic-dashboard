@@ -104,10 +104,15 @@ PALETTE_COULEURS = {
 # ==========================================
 # Priorité : st.secrets (Streamlit Cloud) -> os.environ -> session_state
 def get_mongo_uri():
-    if "MONGO_URI" in st.secrets:
-        return st.secrets["MONGO_URI"]
-    elif "mongo_uri" in st.session_state and st.session_state["mongo_uri"]:
+    try:
+        if "MONGO_URI" in st.secrets:
+            return st.secrets["MONGO_URI"]
+    except Exception:
+        pass
+        
+    if "mongo_uri" in st.session_state and st.session_state["mongo_uri"]:
         return st.session_state["mongo_uri"]
+        
     return os.getenv("MONGO_URI", "")
 
 @st.cache_data(ttl=15)
