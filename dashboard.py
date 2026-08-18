@@ -102,7 +102,6 @@ PALETTE_COULEURS = {
 # ==========================================
 # 2. CHARGEMENT DES DONNÉES MONGODB SÉCURISÉ
 # ==========================================
-# Priorité : st.secrets (Streamlit Cloud) -> os.environ -> session_state
 def get_mongo_uri():
     try:
         if "MONGO_URI" in st.secrets:
@@ -115,7 +114,9 @@ def get_mongo_uri():
         
     return os.getenv("MONGO_URI", "")
 
-@st.cache_data(ttl=15)
+# Définition de l'URI active avant utilisation
+active_uri = get_mongo_uri()
+
 @st.cache_data(ttl=15)
 def load_latest_traffic_data(uri):
     if not uri:
